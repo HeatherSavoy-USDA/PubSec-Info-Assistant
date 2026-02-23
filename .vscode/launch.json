@@ -5,6 +5,31 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "type": "bashdb",
+            "request": "launch",
+            "name": "Bash-Debug (active script)",
+            "cwd": "${workspaceFolder}",
+            "program": "${file}",
+            "args": []
+        },
+        {
+            "type": "bashdb",
+            "request": "launch",
+            "name": "Bash-Debug (type in script name)",
+            "cwd": "${workspaceFolder}",
+            "program": "${command:AskForScriptName}",
+            "args": []
+        },
+        {
+            "type": "bashdb",
+            "request": "launch",
+            "name": "Bash-Debug (select script from list of sh files)",
+            "cwd": "${workspaceFolder}",
+            "program": "${command:SelectScriptName}",
+            "args": []
+        },
+    
+        {
             "name": "Python: WebApp backend",
             "type": "python",
             "request": "launch",
@@ -17,7 +42,8 @@
             ],
             "cwd": "${workspaceFolder}/app/backend",
             "console": "integratedTerminal",
-            "justMyCode": true,
+            "justMyCode": false,
+            // "justMyCode": true,
             "envFile": "${workspaceFolder}/scripts/environments/infrastructure.debug.env",
             "preLaunchTask": "pip_install"
         },
