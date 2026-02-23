@@ -103,7 +103,8 @@ class ChatReadRetrieveReadApproach(Approach):
         azure_ai_endpoint:str,
         azure_ai_location:str,
         azure_ai_token_provider:str,
-        use_semantic_reranker: bool
+        use_semantic_reranker: bool,
+        azure_ai_key: str = None
     ):
         self.search_client = search_client
         self.chatgpt_deployment = chatgpt_deployment
@@ -121,6 +122,7 @@ class ChatReadRetrieveReadApproach(Approach):
         self.azure_ai_endpoint=azure_ai_endpoint
         self.azure_ai_location=azure_ai_location
         self.azure_ai_token_provider=azure_ai_token_provider
+        self.azure_ai_key=azure_ai_key
         self.oai_endpoint=oai_endpoint
         self.embedding_service_url = enrichment_appservice_uri
         self.use_semantic_reranker=use_semantic_reranker
@@ -129,10 +131,18 @@ class ChatReadRetrieveReadApproach(Approach):
         openai.api_type = 'azure'
         openai.api_version = "2024-02-01"
         
-        self.client = AsyncAzureOpenAI(
-        azure_endpoint = openai.api_base,
-        azure_ad_token_provider=azure_ai_token_provider,
-        api_version=openai.api_version)
+        # Create OpenAI client with either API key or token-based authentication
+        if azure_ai_token_provider:
+            self.client = AsyncAzureOpenAI(
+                azure_endpoint = openai.api_base,
+                azure_ad_token_provider=azure_ai_token_provider,
+                api_version=openai.api_version)
+        else:
+            # Fallback: use API key from openai module if no token provider
+            self.client = AsyncAzureOpenAI(
+                azure_endpoint = openai.api_base,
+                api_key=openai.api_key,
+                api_version=openai.api_version)
                
 
         self.model_name = model_name
@@ -431,11 +441,19 @@ class ChatReadRetrieveReadApproach(Approach):
         """ Function to detect the language of the text"""
         try:
             api_detect_endpoint = f"{self.azure_ai_endpoint}language/:analyze-text?api-version=2023-04-01"
-            headers = {
-                'Authorization': f'Bearer {self.azure_ai_token_provider()}',
-                'Content-type': 'application/json',
-                'Ocp-Apim-Subscription-Region': self.azure_ai_location
-            }
+            
+            # Use API key authentication if available, otherwise fall back to token-based authentication
+            if self.azure_ai_key:
+                headers = {
+                    'Ocp-Apim-Subscription-Key': self.azure_ai_key,
+                    'Content-type': 'application/json'
+                }
+            else:
+                headers = {
+                    'Authorization': f'Bearer {self.azure_ai_token_provider()}',
+                    'Content-type': 'application/json',
+                    'Ocp-Apim-Subscription-Region': self.azure_ai_location
+                }
 
             data = {
                 "kind": "LanguageDetection",
@@ -462,11 +480,20 @@ class ChatReadRetrieveReadApproach(Approach):
     def translate_response(self, response: str, target_language: str) -> str:
         """ Function to translate the response to target language"""
         api_translate_endpoint = f"{self.azure_ai_endpoint}translator/text/v3.0/translate?api-version=3.0"
-        headers = {
-            'Authorization': f'Bearer {self.azure_ai_token_provider()}',
-            'Content-type': 'application/json',
-            'Ocp-Apim-Subscription-Region': self.azure_ai_location
-        }
+        
+        # Use API key authentication if available, otherwise fall back to token-based authentication
+        if self.azure_ai_key:
+            headers = {
+                'Ocp-Apim-Subscription-Key': self.azure_ai_key,
+                'Content-type': 'application/json'
+            }
+        else:
+            headers = {
+                'Authorization': f'Bearer {self.azure_ai_token_provider()}',
+                'Content-type': 'application/json',
+                'Ocp-Apim-Subscription-Region': self.azure_ai_location
+            }
+        
         params={'to': target_language }
         data = [{
             "text": response

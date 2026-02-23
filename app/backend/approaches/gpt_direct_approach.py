@@ -71,24 +71,34 @@ class GPTDirectApproach(Approach):
         query_term_language: str,
         model_name: str,
         model_version: str,
-        azure_openai_endpoint: str
+        azure_openai_endpoint: str,
+        azure_openai_key: str = None
     ):
         self.chatgpt_deployment = chatgpt_deployment
         self.query_term_language = query_term_language
         self.chatgpt_token_limit = get_token_limit(model_name)
         
         openai.api_base = azure_openai_endpoint
-        openai.api_type = "azure_ad"
-        openai.azure_ad_token_provider = azure_openai_token_provider
+        openai.api_type = "azure"
         openai.api_version = "2024-02-01"
 
         self.model_name = model_name
         self.model_version = model_version
         
-        self.client = AsyncAzureOpenAI(
-        azure_endpoint = openai.api_base, 
-        azure_ad_token_provider=azure_openai_token_provider,
-        api_version=openai.api_version)
+        # Create OpenAI client with either API key or token-based authentication
+        if azure_openai_key:
+            openai.api_key = azure_openai_key
+            self.client = AsyncAzureOpenAI(
+                azure_endpoint = openai.api_base, 
+                api_key=azure_openai_key,
+                api_version=openai.api_version)
+        else:
+            openai.api_type = "azure_ad"
+            openai.azure_ad_token_provider = azure_openai_token_provider
+            self.client = AsyncAzureOpenAI(
+                azure_endpoint = openai.api_base, 
+                azure_ad_token_provider=azure_openai_token_provider,
+                api_version=openai.api_version)
 
     # def run(self, history: list[dict], overrides: dict) -> any:
     async def run(self, history: Sequence[dict[str, str]], overrides: dict[str, Any], citation_lookup: dict[str, Any], thought_chain: dict[str, Any]) -> Any:

@@ -62,7 +62,8 @@ class CompareWebWithWork(Approach):
         azure_ai_endpoint:str,
         azure_ai_location: str,
         azure_ai_token_provider: str,
-        use_semantic_reranker: bool
+        use_semantic_reranker: bool,
+        azure_openai_key: str = None
     ):
         self.search_client = search_client
         self.chatgpt_deployment = chatgpt_deployment
@@ -89,10 +90,18 @@ class CompareWebWithWork(Approach):
         openai.api_type = 'azure'
         openai.api_version = "2024-02-01"
                
-        self.client = AsyncAzureOpenAI(
-        azure_endpoint = openai.api_base, 
-        azure_ad_token_provider=azure_ai_token_provider,  
-        api_version=openai.api_version)
+        # Create OpenAI client with either API key or token-based authentication
+        if azure_openai_key:
+            openai.api_key = azure_openai_key
+            self.client = AsyncAzureOpenAI(
+                azure_endpoint = openai.api_base, 
+                api_key=azure_openai_key,  
+                api_version=openai.api_version)
+        else:
+            self.client = AsyncAzureOpenAI(
+                azure_endpoint = openai.api_base, 
+                azure_ad_token_provider=azure_ai_token_provider,  
+                api_version=openai.api_version)
 
     async def run(self, history: Sequence[dict[str, str]], overrides: dict[str, Any], web_citation_lookup: dict[str, Any], thought_chain: dict[str, Any]) -> Any:
         """

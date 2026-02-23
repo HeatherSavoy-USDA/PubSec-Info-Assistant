@@ -39,6 +39,7 @@ from approaches.tabulardataassistant import (
 )
 from shared_code.status_log import State, StatusClassification, StatusLog
 from azure.cosmos import CosmosClient
+from azure.core.credentials import AzureKeyCredential
 
 
 # === ENV Setup ===
@@ -46,6 +47,7 @@ from azure.cosmos import CosmosClient
 ENV = {
     "AZURE_BLOB_STORAGE_ACCOUNT": None,
     "AZURE_BLOB_STORAGE_ENDPOINT": None,
+    "AZURE_BLOB_STORAGE_KEY": "",
     "AZURE_BLOB_STORAGE_CONTAINER": "content",
     "AZURE_BLOB_STORAGE_UPLOAD_CONTAINER": "upload",
     "AZURE_SEARCH_SERVICE": "gptkb",
@@ -56,6 +58,7 @@ ENV = {
     "AZURE_OPENAI_SERVICE": "myopenai",
     "AZURE_OPENAI_RESOURCE_GROUP": "",
     "AZURE_OPENAI_ENDPOINT": "",
+    "AZURE_OPENAI_KEY": "",
     "AZURE_OPENAI_AUTHORITY_HOST": "AzureCloud",
     "AZURE_OPENAI_CHATGPT_DEPLOYMENT": "gpt-35-turbo-16k",
     "AZURE_OPENAI_CHATGPT_MODEL_NAME": "",
@@ -73,6 +76,7 @@ ENV = {
     "KB_FIELDS_SOURCEFILE": "file_name",
     "KB_FIELDS_CHUNKFILE": "chunk_file",
     "COSMOSDB_URL": None,
+    "COSMOSDB_KEY": None,
     "COSMOSDB_LOG_DATABASE_NAME": "statusdb",
     "COSMOSDB_LOG_CONTAINER_NAME": "statuscontainer",
     "QUERY_TERM_LANGUAGE": "English",
@@ -81,6 +85,7 @@ ENV = {
     "TARGET_TRANSLATION_LANGUAGE": "en",
     "AZURE_AI_ENDPOINT": None,
     "AZURE_AI_LOCATION": "",
+    "AZURE_AI_KEY": "",
     "BING_SEARCH_ENDPOINT": "https://api.bing.microsoft.com/",
     "BING_SEARCH_KEY": "",
     "ENABLE_BING_SAFE_SEARCH": "true",
@@ -130,25 +135,44 @@ openai.api_version = "2024-02-01"
 # Use managed identity when deployed on Azure.
 # If you encounter a blocking error during a DefaultAzureCredntial resolution, you can exclude
 # the problematic credential by using a parameter (ex. exclude_shared_token_cache_credential=True)
+print(ENV["LOCAL_DEBUG"])
 if ENV["LOCAL_DEBUG"] == "true":
     azure_credential = DefaultAzureCredential(authority=AUTHORITY)
 else:
     azure_credential = ManagedIdentityCredential(authority=AUTHORITY)
-# Comment these two lines out if using keys, set your API key in the OPENAI_API_KEY
-# environment variable instead
-openai.api_type = "azure_ad"
-token_provider = get_bearer_token_provider(azure_credential,
-                                           f'https://{ENV["AZURE_AI_CREDENTIAL_DOMAIN"]}/.default')
-openai.azure_ad_token_provider = token_provider
-#openai.api_key = ENV["AZURE_OPENAI_SERVICE_KEY"]
+
+# Setup OpenAI authentication
+if ENV["AZURE_OPENAI_KEY"]:
+    # Use API key authentication
+    openai.api_type = "azure"
+    openai.api_key = ENV["AZURE_OPENAI_KEY"]
+    # Create a dummy token provider that returns the API key
+    # This allows classes to work with either authentication method
+    def api_key_token_provider():
+        return ENV["AZURE_OPENAI_KEY"]
+    token_provider = api_key_token_provider
+else:
+    # Use token-based authentication (requires RBAC permissions)
+    openai.api_type = "azure_ad"
+    token_provider = get_bearer_token_provider(azure_credential,
+                                               f'https://{ENV["AZURE_AI_CREDENTIAL_DOMAIN"]}/.default')
+    openai.azure_ad_token_provider = token_provider
 
 # Setup StatusLog to allow access to CosmosDB for logging
-statusLog = StatusLog(
-    ENV["COSMOSDB_URL"],
-    azure_credential,
-    ENV["COSMOSDB_LOG_DATABASE_NAME"],
-    ENV["COSMOSDB_LOG_CONTAINER_NAME"]
-)
+if ENV["COSMOSDB_KEY"]:
+    statusLog = StatusLog(
+        ENV["COSMOSDB_URL"],
+        ENV["COSMOSDB_KEY"],
+        ENV["COSMOSDB_LOG_DATABASE_NAME"],
+        ENV["COSMOSDB_LOG_CONTAINER_NAME"]
+    )
+else:
+    statusLog = StatusLog(
+        ENV["COSMOSDB_URL"],
+        azure_credential,
+        ENV["COSMOSDB_LOG_DATABASE_NAME"],
+        ENV["COSMOSDB_LOG_CONTAINER_NAME"]
+    )
 
 # Set up clients for Cognitive Search and Storage
 search_client = SearchClient(
@@ -158,10 +182,17 @@ search_client = SearchClient(
     audience=ENV["AZURE_SEARCH_AUDIENCE"]
 )
 
-blob_client = BlobServiceClient(
-    account_url=ENV["AZURE_BLOB_STORAGE_ENDPOINT"],
-    credential=azure_credential,
-)
+# Setup blob storage authentication
+if ENV["AZURE_BLOB_STORAGE_KEY"]:
+    # Use API key authentication with connection string
+    connection_string = f'DefaultEndpointsProtocol=https;AccountName={ENV["AZURE_BLOB_STORAGE_ACCOUNT"]};AccountKey={ENV["AZURE_BLOB_STORAGE_KEY"]};EndpointSuffix=core.windows.net'
+    blob_client = BlobServiceClient.from_connection_string(connection_string)
+else:
+    # Use token-based authentication (requires RBAC permissions)
+    blob_client = BlobServiceClient(
+        account_url=ENV["AZURE_BLOB_STORAGE_ENDPOINT"],
+        credential=azure_credential,
+    )
 blob_container = blob_client.get_container_client(ENV["AZURE_BLOB_STORAGE_CONTAINER"])
 blob_upload_container_client = blob_client.get_container_client(
                                     os.environ["AZURE_BLOB_STORAGE_UPLOAD_CONTAINER"])
@@ -216,7 +247,8 @@ chat_approaches = {
                                     ENV["AZURE_AI_ENDPOINT"],
                                     ENV["AZURE_AI_LOCATION"],
                                     token_provider,
-                                    str_to_bool.get(ENV["USE_SEMANTIC_RERANKER"])
+                                    str_to_bool.get(ENV["USE_SEMANTIC_RERANKER"]),
+                                    ENV["AZURE_AI_KEY"]
                                 ),
     Approaches.ChatWebRetrieveRead: ChatWebRetrieveRead(
                                     MODEL_NAME,
@@ -226,7 +258,8 @@ chat_approaches = {
                                     ENV["BING_SEARCH_KEY"],
                                     str_to_bool.get(ENV["ENABLE_BING_SAFE_SEARCH"]),
                                     ENV["AZURE_OPENAI_ENDPOINT"],
-                                    token_provider
+                                    token_provider,
+                                    ENV["AZURE_OPENAI_KEY"]
                                 ),
     Approaches.CompareWorkWithWeb: CompareWorkWithWeb(
                                     MODEL_NAME,
@@ -236,7 +269,8 @@ chat_approaches = {
                                     ENV["BING_SEARCH_KEY"],
                                     str_to_bool.get(ENV["ENABLE_BING_SAFE_SEARCH"]),
                                     ENV["AZURE_OPENAI_ENDPOINT"],
-                                    token_provider
+                                    token_provider,
+                                    ENV["AZURE_OPENAI_KEY"]
                                 ),
     Approaches.CompareWebWithWork: CompareWebWithWork(
                                     search_client,
@@ -257,7 +291,8 @@ chat_approaches = {
                                     ENV["AZURE_AI_ENDPOINT"],
                                     ENV["AZURE_AI_LOCATION"],
                                     token_provider,
-                                    str_to_bool.get(ENV["USE_SEMANTIC_RERANKER"])
+                                    str_to_bool.get(ENV["USE_SEMANTIC_RERANKER"]),
+                                    ENV["AZURE_OPENAI_KEY"]
                                 ),
     Approaches.GPTDirect: GPTDirectApproach(
                                 token_provider,
@@ -265,7 +300,8 @@ chat_approaches = {
                                 ENV["QUERY_TERM_LANGUAGE"],
                                 MODEL_NAME,
                                 MODEL_VERSION,
-                                ENV["AZURE_OPENAI_ENDPOINT"]
+                                ENV["AZURE_OPENAI_ENDPOINT"],
+                                ENV["AZURE_OPENAI_KEY"]
     )
 }
 
