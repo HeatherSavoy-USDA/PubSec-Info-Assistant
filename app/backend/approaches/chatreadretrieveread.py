@@ -12,8 +12,8 @@ import openai
 from openai import AsyncAzureOpenAI
 from openai import BadRequestError
 from approaches.approach import Approach
-from azure.search.documents import SearchClient
-from azure.search.documents.models import RawVectorQuery
+from azure.search.documents import SearchClient  
+from azure.search.documents.models import VectorizedQuery
 from azure.search.documents.models import QueryType
 from azure.storage.blob import (
     BlobSasPermissions,
@@ -257,11 +257,10 @@ class ChatReadRetrieveReadApproach(Approach):
             # Timeout or other error has occurred
             log.error(f"Error generating embedding: {str(e)}")
             yield json.dumps({"error": f"Error generating embedding: {str(e)}"}) + "\n"
-            return  # Go no further
-
-        # vector set up for pure vector search & Hybrid search & Hybrid semantic
-        vector = RawVectorQuery(
-            vector=embedded_query_vector, k=top, fields="contentVector")
+            return # Go no further
+        
+        #vector set up for pure vector search & Hybrid search & Hybrid semantic
+        vector = VectorizedQuery(vector=embedded_query_vector, k_nearest_neighbors=top, fields="contentVector")
 
         # Create a filter for the search query
         if (folder_filter != "") & (folder_filter != "All"):
