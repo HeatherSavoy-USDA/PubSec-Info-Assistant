@@ -44,8 +44,10 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             // "justMyCode": true,
-            "envFile": "${workspaceFolder}/scripts/environments/infrastructure.debug.env",
-            "preLaunchTask": "pip_install"
+            // "envFile": "${workspaceFolder}/scripts/environments/infrastructure.debug.env",
+            "envFile": "${workspaceFolder}/app/backend/backend.env",
+            // "preLaunchTask": "pip_install"
+            // "preLaunchTask": "load backend env"
         },
         {
             "name": "Python: Enrichment Webapp",
