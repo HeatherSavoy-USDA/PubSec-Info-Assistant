@@ -132,16 +132,17 @@ class ChatReadRetrieveReadApproach(Approach):
         openai.api_version = "2024-02-01"
         
         # Create OpenAI client with either API key or token-based authentication
-        if azure_ai_token_provider:
-            self.client = AsyncAzureOpenAI(
-                azure_endpoint = openai.api_base,
-                azure_ad_token_provider=azure_ai_token_provider,
-                api_version=openai.api_version)
-        else:
-            # Fallback: use API key from openai module if no token provider
+        if azure_ai_key:
             self.client = AsyncAzureOpenAI(
                 azure_endpoint = openai.api_base,
                 api_key=openai.api_key,
+                timeout=180,
+                api_version=openai.api_version)
+        else:
+            self.client = AsyncAzureOpenAI(
+                azure_endpoint = openai.api_base,
+                azure_ad_token_provider=azure_ai_token_provider,
+                timeout=180,
                 api_version=openai.api_version)
                
 

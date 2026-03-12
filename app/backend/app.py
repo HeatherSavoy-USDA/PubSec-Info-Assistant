@@ -76,7 +76,7 @@ ENV = {
     "KB_FIELDS_SOURCEFILE": "file_name",
     "KB_FIELDS_CHUNKFILE": "chunk_file",
     "COSMOSDB_URL": None,
-    "COSMOSDB_KEY": None,
+    "COSMOSDB_KEY": "",
     "COSMOSDB_LOG_DATABASE_NAME": "statusdb",
     "COSMOSDB_LOG_CONTAINER_NAME": "statuscontainer",
     "QUERY_TERM_LANGUAGE": "English",
@@ -135,14 +135,14 @@ openai.api_version = "2024-02-01"
 # Use managed identity when deployed on Azure.
 # If you encounter a blocking error during a DefaultAzureCredntial resolution, you can exclude
 # the problematic credential by using a parameter (ex. exclude_shared_token_cache_credential=True)
-print(ENV["LOCAL_DEBUG"])
+print(f'local debug = {ENV["LOCAL_DEBUG"]}')
 if ENV["LOCAL_DEBUG"] == "true":
     azure_credential = DefaultAzureCredential(authority=AUTHORITY)
 else:
     azure_credential = ManagedIdentityCredential(authority=AUTHORITY)
 
 # Setup OpenAI authentication
-if ENV["AZURE_OPENAI_KEY"]:
+if ENV["LOCAL_DEBUG"] == "true":
     # Use API key authentication
     openai.api_type = "azure"
     openai.api_key = ENV["AZURE_OPENAI_KEY"]
@@ -159,7 +159,7 @@ else:
     openai.azure_ad_token_provider = token_provider
 
 # Setup StatusLog to allow access to CosmosDB for logging
-if ENV["COSMOSDB_KEY"]:
+if ENV["LOCAL_DEBUG"] == "true":
     statusLog = StatusLog(
         ENV["COSMOSDB_URL"],
         ENV["COSMOSDB_KEY"],
@@ -183,9 +183,14 @@ search_client = SearchClient(
 )
 
 # Setup blob storage authentication
-if ENV["AZURE_BLOB_STORAGE_KEY"]:
+if ENV["LOCAL_DEBUG"] == "true":
     # Use API key authentication with connection string
-    connection_string = f'DefaultEndpointsProtocol=https;AccountName={ENV["AZURE_BLOB_STORAGE_ACCOUNT"]};AccountKey={ENV["AZURE_BLOB_STORAGE_KEY"]};EndpointSuffix=core.windows.net'
+    connection_string = (
+        f'DefaultEndpointsProtocol=https;'
+        f'AccountName={ENV["AZURE_BLOB_STORAGE_ACCOUNT"]};'
+        f'AccountKey={ENV["AZURE_BLOB_STORAGE_KEY"]};'
+        f'EndpointSuffix=core.windows.net'
+    )
     blob_client = BlobServiceClient.from_connection_string(connection_string)
 else:
     # Use token-based authentication (requires RBAC permissions)
